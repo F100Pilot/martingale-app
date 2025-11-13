@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <title>Registo Apostas Martingale + ROI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Chart.js para gráficos -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #111;
+      color: #eee;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .card {
+      background: #1b1b1b;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.4);
+    }
+    label {
+      display: block;
+      margin-top: 8px;
+      font-size: 0.9rem;
+    }
+    input, select, button, textarea {
+      width: 100%;
+      padding: 6px 8px;
+      margin-top: 4px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #222;
+      color: #eee;
+      box-sizing: border-box;
+    }
+    button {
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button.primary {
+      background: #2d7ef7;
+      border: none;
+      font-weight: bold;
+    }
+    button.danger {
+      background: #b32424;
+      border: none;
+      font-weight: bold;
+    }
+    button.small {
+      width: auto;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      margin: 0 2px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.8rem;
+    }
+    th, td {
+      border: 1px solid #444;
+      padding: 4px 6px;
+      text-align: center;
+    }
+    th {
+      background: #222;
+    }
+    .status-pendente { color: #f1c40f; }
+    .status-ganha { color: #2ecc71; }
+    .status-perdida { color: #e74c3c; }
+    .flex-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .flex-item {
+      flex: 1 1 200px;
+    }
+    .highlight {
+      font-weight: bold;
+      color: #2ecc71;
+    }
+    .danger-text {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .stat-box {
+      background: #181818;
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+      font-size: 0.85rem;
+    }
+    .stat-label {
+      color: #aaa;
+      font-size: 0.8rem;
+    }
+    .stat-value {
+      font-size: 1.1rem;
+      margin-top: 4px;
+    }
+    canvas {
+      background: #181818;
+      border-radius: 6px;
+      padding: 6px;
+      margin-top: 10px;
+    }
+    .small-note {
+      font-size: 0.75rem;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <h1>Registo Apostas Martingale</h1>
+
+  <!-- Configuração geral -->
+  <div class="card">
+    <h2>Configuração</h2>
+    <div class="flex-row">
+      <div class="flex-item">
+        <label for="bankroll">Banca atual (€)</label>
+        <input type="number" id="bankroll" step="0.01" />
+      </div>
+      <div class="flex-item">
+        <label for="baseProfit">Lucro base por ciclo (€)</label>
+        <input type="number" id="baseProfit" step="0.01" />
+      </div>
+      <div class="flex-item">
+        <label for="currentLoss">Perdas acumuladas na série (€)</label>
+        <input type="number" id="currentLoss" step="0.01" disabled />
+      </div>
+      <div class="flex-item">
+        <label for="martingaleStep">Passo Martingale</label>
+        <input type="number" id="martingaleStep" disabled />
+      </div>
+      <div class="flex-item">
+        <label for="initialBankroll">Banca inicial (€)</label>
+        <input type="number" id="initialBankroll" step="0.01" disabled />
+      </div>
+    </div>
+    <button class="primary" onclick="saveSettings()">Guardar configuração</button>
+    <button class="small" onclick="resetSeries()">Reiniciar série Martingale</button>
+    <p id="configInfo"></p>
+  </div>
+
+  <!-- Nova aposta / jogos de hoje -->
+  <div class="card">
+    <h2>Nova aposta</h2>
+
+    <label for="todayMatchSelect">Jogos de hoje (API-Football)</label>
+    <select id="todayMatchSelect">
+      <option value="">A carregar jogos de hoje...</option>
+    </select>
+    <p class="small-note">
+      Seleciona um jogo da lista para preencher o campo abaixo.  
+      Os jogos vêm da API-Football (pode ser necessário atualizar a API key).
+    </p>
+
+    <label for="match">Jogo / descrição</label>
+    <input type="text" id="match" placeholder="Ex.: Team A vs Team B" />
+
+    <div class="flex-row">
+      <div class="flex-item">
+        <label for="market">Mercado</label>
+        <input type="text" id="market" value="BTTS" />
+      </div>
+      <div class="flex-item">
+        <label for="selection">Seleção</label>
+        <select id="selection">
+          <option value="BTTS-SIM">BTTS – SIM</option>
+          <option value="BTTS-NAO">BTTS – NÃO</option>
+        </select>
+      </div>
+      <div class="flex-item">
+        <label for="odd">Odd da aposta</label>
+        <input type="number" id="odd" step="0.001" />
+      </div>
+    </div>
+
+    <button class="primary" onclick="calculateStake()">Calcular stake</button>
+
+    <p id="calcResult"></p>
+
+    <button class="primary" onclick="addBet()">Registar aposta</button>
+  </div>
+
+  <!-- Resumo / Estatísticas -->
+  <div class="card">
+    <h2>Resumo & Estatísticas</h2>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-label">Banca atual</div>
+        <div id="statBankroll" class="stat-value highlight">0.00 €</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Lucro total</div>
+        <div id="statProfit" class="stat-value">0.00 €</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Total apostado</div>
+        <div id="statStaked" class="stat-value">0.00 €</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">ROI total</div>
+        <div id="statROI" class="stat-value">0.00 %</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Apostas (G / P / Pend.)</div>
+        <div id="statCounts" class="stat-value">0 / 0 / 0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Winrate</div>
+        <div id="statWinrate" class="stat-value">0.00 %</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Maior sequência de perdas</div>
+        <div id="statMaxLoses" class="stat-value">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Maior stake</div>
+        <div id="statMaxStake" class="stat-value">0.00 €</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráficos -->
+  <div class="card">
+    <h2>Gráficos</h2>
+    <p class="small-note">
+      Os gráficos são baseados nas apostas com resultado definido (Ganha/Perdida).
+    </p>
+    <div class="flex-row">
+      <div class="flex-item">
+        <label>Equity Curve (Banca ao longo do tempo)</label>
+        <canvas id="equityChart" height="200"></canvas>
+      </div>
+      <div class="flex-item">
+        <label>Lucro por dia</label>
+        <canvas id="profitByDayChart" height="200"></canvas>
+      </div>
+    </div>
+    <div class="flex-row">
+      <div class="flex-item">
+        <label>Distribuição de resultados</label>
+        <canvas id="resultPieChart" height="200"></canvas>
+      </div>
+      <div class="flex-item">
+        <label>Histograma de odds</label>
+        <canvas id="oddHistogramChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela de apostas -->
+  <div class="card">
+    <h2>Histórico de apostas</h2>
+    <button class="small" onclick="exportCSV()">Exportar para CSV</button>
+    <button class="small danger" onclick="clearAllBets()">Apagar todas as apostas</button>
+    <table id="betsTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Data/Hora</th>
+          <th>Jogo</th>
+          <th>Mercado</th>
+          <th>Seleção</th>
+          <th>Odd</th>
+          <th>Stake</th>
+          <th>Banca antes</th>
+          <th>Banca depois</th>
+          <th>Resultado</th>
+          <th>Lucro/Perda</th>
+          <th>Passo</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    // ======= CONFIGURAÇÃO API-FOOTBALL =======
+    const API_FOOTBALL_KEY = "YOUR_API_KEY_HERE"; // <- SUBSTITUI POR A TUA KEY
+    const API_FOOTBALL_BASE_URL = "https://v3.football.api-sports.io";
+
+    // ======= ESTADO GLOBAL =======
+    let settings = {
+      bankroll: 0,
+      baseProfit: 0.2,
+      currentLoss: 0,
+      martingaleStep: 1,
+      initialBankroll: null
+    };
+
+    let bets = []; // histórico
+
+    // Gráficos Chart.js
+    let equityChart = null;
+    let profitByDayChart = null;
+    let resultPieChart = null;
+    let oddHistogramChart = null;
+
+    // ======= LOCALSTORAGE =======
+    function loadFromStorage() {
+      const s = localStorage.getItem('martingale_settings_v2');
+      const b = localStorage.getItem('martingale_bets_v2');
+      if (s) {
+        settings = JSON.parse(s);
+      }
+      if (b) {
+        bets = JSON.parse(b);
+      }
+      // retrocompatibilidade: se não tiver initialBankroll, usa banca atual
+      if (settings.initialBankroll == null && settings.bankroll > 0) {
+        settings.initialBankroll = settings.bankroll;
+      }
+    }
+
+    function saveToStorage() {
+      localStorage.setItem('martingale_settings_v2', JSON.stringify(settings));
+      localStorage.setItem('martingale_bets_v2', JSON.stringify(bets));
+    }
+
+    // ======= UI CONFIG =======
+    function updateConfigUI() {
+      document.getElementById('bankroll').value = settings.bankroll.toFixed(2);
+      document.getElementById('baseProfit').value = settings.baseProfit.toFixed(2);
+      document.getElementById('currentLoss').value = settings.currentLoss.toFixed(2);
+      document.getElementById('martingaleStep').value = settings.martingaleStep;
+      document.getElementById('initialBankroll').value =
+        settings.initialBankroll != null ? settings.initialBankroll.toFixed(2) : "";
+
+      document.getElementById('configInfo').textContent =
+        'Configuração carregada. Altera a banca e lucro base se necessário e clica em "Guardar configuração".';
+
+      document.getElementById('statBankroll').textContent = settings.bankroll.toFixed(2) + ' €';
+    }
+
+    function saveSettings() {
+      const bk = parseFloat(document.getElementById('bankroll').value) || 0;
+      const bp = parseFloat(document.getElementById('baseProfit').value) || 0;
+      // Se não houver banca inicial definida ainda, define agora
+      if (settings.initialBankroll == null || settings.initialBankroll === 0) {
+        settings.initialBankroll = bk;
+      }
+      settings.bankroll = bk;
+      settings.baseProfit = bp;
+      saveToStorage();
+      updateConfigUI();
+      computeAndUpdateStats();
+      alert('Configuração guardada.');
+    }
+
+    function resetSeries() {
+      settings.currentLoss = 0;
+      settings.martingaleStep = 1;
+      saveToStorage();
+      updateConfigUI();
+      computeAndUpdateStats();
+    }
+
+    // ======= CÁLCULO DA STAKE (MARTINGALE) =======
+    function calculateStake() {
+      const odd = parseFloat(document.getElementById('odd').value);
+      if (!odd || odd <= 1) {
+        alert('Introduz uma odd válida (>1).');
+        return;
+      }
+      if (settings.bankroll <= 0) {
+        alert('Define primeiro a banca na configuração.');
+        return;
+      }
+      const perdas = settings.currentLoss;
+      const lucroBase = settings.baseProfit;
+
+      const stake = (perdas + lucroBase) / (odd - 1);
+
+      if (stake > settings.bankroll) {
+        document.getElementById('calcResult').innerHTML =
+          '<span class="danger-text">ATENÇÃO:</span> Stake necessária (' +
+          stake.toFixed(2) +
+          ' €) é superior à banca atual (' +
+          settings.bankroll.toFixed(2) +
+          ' €). Verifica a gestão de risco.';
+      } else {
+        const texto =
+          'Stake sugerida: <span class="highlight">' +
+          stake.toFixed(2) +
+          ' €</span><br>' +
+          'Se ganhar: lucro aproximado de ' +
+          (stake * (odd - 1) - perdas).toFixed(2) +
+          ' € (após recuperar ' +
+          perdas.toFixed(2) +
+          ' € de perdas acumuladas).';
+        document.getElementById('calcResult').innerHTML = texto;
+      }
+
+      window.lastCalculatedStake = stake;
+      return stake;
+    }
+
+    // ======= ADICIONAR APOSTA =======
+    function addBet() {
+      const match = document.getElementById('match').value.trim();
+      const market = document.getElementById('market').value.trim();
+      const selection = document.getElementById('selection').value;
+      const odd = parseFloat(document.getElementById('odd').value);
+
+      if (!odd || odd <= 1) {
+        alert('Introduz uma odd válida (>1).');
+        return;
+      }
+
+      let stake = window.lastCalculatedStake;
+      if (!stake || isNaN(stake)) {
+        stake = (settings.currentLoss + settings.baseProfit) / (odd - 1);
+      }
+
+      if (stake > settings.bankroll) {
+        if (!confirm('A stake é superior à banca atual. Queres registar na mesma?')) {
+          return;
+        }
+      }
+
+      const bet = {
+        id: bets.length + 1,
+        datetime: new Date().toISOString(), // ISO para ordenar
+        displayDatetime: new Date().toLocaleString(),
+        match,
+        market,
+        selection,
+        odd,
+        stake,
+        bankrollBefore: settings.bankroll,
+        bankrollAfter: settings.bankroll,
+        result: 'Pendente',
+        profit: 0,
+        martingaleStep: settings.martingaleStep
+      };
+
+      bets.push(bet);
+      saveToStorage();
+      renderBetsTable();
+      computeAndUpdateStats();
+
+      document.getElementById('calcResult').innerHTML =
+        'Aposta registada com stake ' + stake.toFixed(2) + ' €. Não te esqueças de marcar como Ganha/Perdida depois do resultado.';
+
+      document.getElementById('match').value = '';
+    }
+
+    // ======= DEFINIR RESULTADO =======
+    function setBetResult(index, outcome) {
+      const bet = bets[index];
+      if (!bet) return;
+      if (bet.result !== 'Pendente') {
+        if (!confirm('Esta aposta já tem resultado. Queres alterar?')) return;
+      }
+
+      const odd = bet.odd;
+      const stake = bet.stake;
+
+      if (outcome === 'Ganha') {
+        const lucro = stake * (odd - 1) - settings.currentLoss;
+        settings.bankroll += lucro;
+        settings.currentLoss = 0;
+        settings.martingaleStep = 1;
+
+        bet.result = 'Ganha';
+        bet.profit = lucro;
+        bet.bankrollAfter = settings.bankroll;
+      } else if (outcome === 'Perdida') {
+        settings.bankroll -= stake;
+        settings.currentLoss += stake;
+        settings.martingaleStep += 1;
+
+        bet.result = 'Perdida';
+        bet.profit = -stake;
+        bet.bankrollAfter = settings.bankroll;
+      }
+
+      saveToStorage();
+      updateConfigUI();
+      renderBetsTable();
+      computeAndUpdateStats();
+    }
+
+    // ======= TABELA =======
+    function renderBetsTable() {
+      const tbody = document.querySelector('#betsTable tbody');
+      tbody.innerHTML = '';
+
+      bets
+        .slice()
+        .sort((a, b) => new Date(a.datetime) - new Date(b.datetime))
+        .forEach((bet, index) => {
+          const tr = document.createElement('tr');
+
+          const statusClass =
+            bet.result === 'Ganha'
+              ? 'status-ganha'
+              : bet.result === 'Perdida'
+              ? 'status-perdida'
+              : 'status-pendente';
+
+          tr.innerHTML = `
+            <td>${bet.id}</td>
+            <td>${bet.displayDatetime}</td>
+            <td>${bet.match || '-'}</td>
+            <td>${bet.market}</td>
+            <td>${bet.selection}</td>
+            <td>${bet.odd.toFixed(3)}</td>
+            <td>${bet.stake.toFixed(2)}</td>
+            <td>${bet.bankrollBefore.toFixed(2)}</td>
+            <td>${bet.bankrollAfter.toFixed(2)}</td>
+            <td class="${statusClass}">${bet.result}</td>
+            <td>${bet.profit.toFixed(2)}</td>
+            <td>${bet.martingaleStep}</td>
+            <td>
+              <button class="small" onclick="setBetResult(${bets.indexOf(bet)}, 'Ganha')">Ganha</button>
+              <button class="small" onclick="setBetResult(${bets.indexOf(bet)}, 'Perdida')">Perdida</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+    }
+
+    // ======= ESTATÍSTICAS & ROI =======
+    function computeAndUpdateStats() {
+      // Só apostas com resultado definido contam para ROI
+      const settled = bets.filter(b => b.result === 'Ganha' || b.result === 'Perdida');
+      const totalStaked = settled.reduce((sum, b) => sum + b.stake, 0);
+      const totalProfit = settled.reduce((sum, b) => sum + b.profit, 0);
+      const wins = settled.filter(b => b.result === 'Ganha').length;
+      const losses = settled.filter(b => b.result === 'Perdida').length;
+      const pending = bets.filter(b => b.result === 'Pendente').length;
+
+      const roi = totalStaked > 0 ? (totalProfit / totalStaked) * 100 : 0;
+      const winrate = settled.length > 0 ? (wins / settled.length) * 100 : 0;
+
+      // Maior sequência de perdas
+      let maxLossStreak = 0;
+      let currentLossStreak = 0;
+      settled
+        .slice()
+        .sort((a, b) => new Date(a.datetime) - new Date(b.datetime))
+        .forEach(b => {
+          if (b.result === 'Perdida') {
+            currentLossStreak++;
+            if (currentLossStreak > maxLossStreak) maxLossStreak = currentLossStreak;
+          } else {
+            currentLossStreak = 0;
+          }
+        });
+
+      // Maior stake
+      const maxStake = settled.length
+        ? settled.reduce((max, b) => (b.stake > max ? b.stake : max), 0)
+        : 0;
+
+      document.getElementById('statBankroll').textContent = settings.bankroll.toFixed(2) + ' €';
+      document.getElementById('statProfit').textContent = totalProfit.toFixed(2) + ' €';
+      document.getElementById('statStaked').textContent = totalStaked.toFixed(2) + ' €';
+      document.getElementById('statROI').textContent = roi.toFixed(2) + ' %';
+      document.getElementById('statCounts').textContent =
+        wins + ' / ' + losses + ' / ' + pending;
+      document.getElementById('statWinrate').textContent = winrate.toFixed(2) + ' %';
+      document.getElementById('statMaxLoses').textContent = maxLossStreak;
+      document.getElementById('statMaxStake').textContent = maxStake.toFixed(2) + ' €';
+
+      updateCharts(settled);
+    }
+
+    // ======= GRÁFICOS =======
+    function updateCharts(settled) {
+      // Ordenar por data
+      const sorted = settled.slice().sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+
+      // Equity curve
+      const equityLabels = [];
+      const equityData = [];
+      if (settings.initialBankroll != null) {
+        // ponto inicial
+        equityLabels.push('Start');
+        equityData.push(settings.initialBankroll);
+      }
+      sorted.forEach(b => {
+        const label = new Date(b.datetime).toLocaleString();
+        equityLabels.push(label);
+        equityData.push(b.bankrollAfter);
+      });
+
+      // Lucro por dia
+      const profitByDayMap = {};
+      sorted.forEach(b => {
+        const d = b.datetime.slice(0, 10); // YYYY-MM-DD
+        profitByDayMap[d] = (profitByDayMap[d] || 0) + b.profit;
+      });
+      const profitByDayLabels = Object.keys(profitByDayMap).sort();
+      const profitByDayData = profitByDayLabels.map(d => profitByDayMap[d]);
+
+      // Distribuição de resultados
+      const wins = sorted.filter(b => b.result === 'Ganha').length;
+      const losses = sorted.filter(b => b.result === 'Perdida').length;
+      const pending = bets.filter(b => b.result === 'Pendente').length;
+
+      // Histograma de odds
+      const odds = sorted.map(b => b.odd);
+      const histBuckets = [
+        { label: '<1.50', from: 0, to: 1.5 },
+        { label: '1.50–1.79', from: 1.5, to: 1.79 + 0.0001 },
+        { label: '1.80–1.99', from: 1.8, to: 1.99 + 0.0001 },
+        { label: '2.00–2.19', from: 2.0, to: 2.19 + 0.0001 },
+        { label: '2.20–2.49', from: 2.2, to: 2.49 + 0.0001 },
+        { label: '≥2.50', from: 2.5, to: 999 }
+      ];
+      const histData = histBuckets.map(b => odds.filter(o => o >= b.from && o < b.to).length);
+
+      // Criar/atualizar gráficos
+      const equityCtx = document.getElementById('equityChart').getContext('2d');
+      const profitByDayCtx = document.getElementById('profitByDayChart').getContext('2d');
+      const resultPieCtx = document.getElementById('resultPieChart').getContext('2d');
+      const oddHistogramCtx = document.getElementById('oddHistogramChart').getContext('2d');
+
+      if (equityChart) equityChart.destroy();
+      if (profitByDayChart) profitByDayChart.destroy();
+      if (resultPieChart) resultPieChart.destroy();
+      if (oddHistogramChart) oddHistogramChart.destroy();
+
+      equityChart = new Chart(equityCtx, {
+        type: 'line',
+        data: {
+          labels: equityLabels,
+          datasets: [{
+            label: 'Banca (€)',
+            data: equityData
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: { ticks: { maxRotation: 45, minRotation: 0 } }
+          }
+        }
+      });
+
+      profitByDayChart = new Chart(profitByDayCtx, {
+        type: 'bar',
+        data: {
+          labels: profitByDayLabels,
+          datasets: [{
+            label: 'Lucro por dia (€)',
+            data: profitByDayData
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+
+      resultPieChart = new Chart(resultPieCtx, {
+        type: 'pie',
+        data: {
+          labels: ['Ganhas', 'Perdidas', 'Pendentes'],
+          datasets: [{
+            data: [wins, losses, pending]
+          }]
+        },
+        options: {
+          responsive: true
+        }
+      });
+
+      oddHistogramChart = new Chart(oddHistogramCtx, {
+        type: 'bar',
+        data: {
+          labels: histBuckets.map(b => b.label),
+          datasets: [{
+            label: 'Nº de apostas',
+            data: histData
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    // ======= EXPORTAR CSV =======
+    function exportCSV() {
+      if (!bets.length) {
+        alert('Não há apostas para exportar.');
+        return;
+      }
+      const header = [
+        'ID',
+        'DataHora',
+        'Jogo',
+        'Mercado',
+        'Selecao',
+        'Odd',
+        'Stake',
+        'BancaAntes',
+        'BancaDepois',
+        'Resultado',
+        'LucroPerda',
+        'PassoMartingale'
+      ];
+      const rows = bets
+        .slice()
+        .sort((a, b) => new Date(a.datetime) - new Date(b.datetime))
+        .map(b => [
+          b.id,
+          '"' + b.displayDatetime + '"',
+          '"' + (b.match || '') + '"',
+          '"' + b.market + '"',
+          '"' + b.selection + '"',
+          b.odd.toFixed(3),
+          b.stake.toFixed(2),
+          b.bankrollBefore.toFixed(2),
+          b.bankrollAfter.toFixed(2),
+          b.result,
+          b.profit.toFixed(2),
+          b.martingaleStep
+        ]);
+
+      const csvContent =
+        [header.join(';')].concat(rows.map(r => r.join(';'))).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'apostas_martingale.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ======= APAGAR TUDO =======
+    function clearAllBets() {
+      if (!confirm('Tens a certeza que queres apagar TODAS as apostas?')) return;
+      bets = [];
+      saveToStorage();
+      renderBetsTable();
+      computeAndUpdateStats();
+    }
+
+    // ======= API-FOOTBALL: CARREGAR JOGOS DE HOJE =======
+    async function loadTodayMatches() {
+      const select = document.getElementById('todayMatchSelect');
+      select.innerHTML = '<option value="">A carregar jogos de hoje...</option>';
+
+      if (!API_FOOTBALL_KEY || API_FOOTBALL_KEY === "bb81291061c92584c457a48ab16705ee") {
+        select.innerHTML =
+          '<option value="">Define a tua API key (API_FOOTBALL_KEY no código)</option>';
+        return;
+      }
+
+      try {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        const url = `${API_FOOTBALL_BASE_URL}/fixtures?date=${dateStr}`;
+        const response = await fetch(url, {
+          headers: {
+            'x-apisports-key': API_FOOTBALL_KEY
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro HTTP: ' + response.status);
+        }
+
+        const data = await response.json();
+        const fixtures = data.response || [];
+
+        if (!fixtures.length) {
+          select.innerHTML = '<option value="">Sem jogos encontrados para hoje</option>';
+          return;
+        }
+
+        select.innerHTML = '<option value="">-- Escolhe um jogo de hoje --</option>';
+
+        fixtures
+          .sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date))
+          .forEach(fix => {
+            const home = fix.teams.home.name;
+            const away = fix.teams.away.name;
+            const league = fix.league ? fix.league.name : '';
+            const time = new Date(fix.fixture.date).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+
+            const text = `${time} - ${home} vs ${away}${league ? ' (' + league + ')' : ''}`;
+            const value = `${home} vs ${away}`;
+
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = text;
+            select.appendChild(opt);
+          });
+      } catch (err) {
+        console.error('Erro a carregar jogos:', err);
+        select.innerHTML =
+          '<option value="">Erro ao carregar jogos de hoje (ver consola)</option>';
+      }
+    }
+
+    function setupTodayMatchSelectListener() {
+      const select = document.getElementById('todayMatchSelect');
+      select.addEventListener('change', () => {
+        const value = select.value;
+        if (value) {
+          document.getElementById('match').value = value;
+        }
+      });
+    }
+
+    // ======= INIT =======
+    window.onload = function () {
+      loadFromStorage();
+      updateConfigUI();
+      renderBetsTable();
+      computeAndUpdateStats();
+      setupTodayMatchSelectListener();
+      loadTodayMatches();
+    };
+  </script>
+</body>
+</html>
