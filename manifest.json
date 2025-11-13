@@ -1,4 +1,5 @@
 {
+  "id": "/martingale-app/",
   "name": "Martingale Tracker",
   "short_name": "Martingale",
   "description": "App para gestão de apostas BTTS com sistema Martingale, estatísticas, ROI, gráficos e BD sincronizada.",
