@@ -2,8 +2,8 @@
   "name": "Martingale Tracker",
   "short_name": "Martingale",
   "description": "Gestão de apostas BTTS com martingale, ROI, gráficos e BD em cloud.",
-  "start_url": "https://f100pilot.github.io/martingale-app/",
-  "scope": "https://f100pilot.github.io/martingale-app/",
+  "start_url": "/martingale-app/",
+  "scope": "/martingale-app/"
   "display": "standalone",
   "background_color": "#2d7ef7",
   "theme_color": "#2d7ef7",
