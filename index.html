@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <title>Registo Apostas Martingale + ROI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #111;
+      --bg-card: #1b1b1b;
+      --bg-input: #222;
+      --border: #444;
+      --text: #eee;
+      --accent: #2d7ef7;
+      --accent-soft: #2d7ef722;
+      --success: #2ecc71;
+      --danger: #e74c3c;
+      --warning: #f1c40f;
+    }
+
+    :root[data-theme="light"] {
+      --bg: #f2f2f2;
+      --bg-card: #ffffff;
+      --bg-input: #fafafa;
+      --border: #ccc;
+      --text: #222;
+      --accent: #2563eb;
+      --accent-soft: #2563eb18;
+      --success: #15803d;
+      --danger: #b91c1c;
+      --warning: #eab308;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 10px;
+    }
+
+    .page-wrapper {
+      max-width: 1100px;
+      margin: 0 auto 40px auto;
+    }
+
+    h1,h2 { text-align: center; margin: 0 0 10px; }
+
+    .card {
+      background: var(--bg-card);
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    input,select,button {
+      width: 100%;
+      padding: 8px;
+      border-radius: 8px;
+      margin-top: 4px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text);
+    }
+
+    button.primary { background: var(--accent); border: none; font-weight: bold; cursor: pointer; }
+    button.small { width: auto; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 750px; }
+    th,td { border: 1px solid var(--border); padding: 5px; text-align: center; }
+    th { background: var(--accent-soft); }
+
+    .status-ganha   { color: var(--success); font-weight: bold; }
+    .status-perdida { color: var(--danger); font-weight: bold; }
+    .status-pendente{ color: var(--warning); font-weight: bold; }
+
+    .flex-row { display:flex; gap:10px; flex-wrap:wrap; }
+    .flex-item { flex:1 1 200px; }
+
+    .stat-box {
+      background: var(--bg-input);
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      text-align: center;
+      flex:1 1 120px;
+    }
+
+    .table-wrapper { width:100%; overflow-x:auto; }
+
+    /* 🌗 Tema */
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .chart-container {
+      position: relative;
+      width: 100%;
+      height: 260px;
+      margin-bottom: 20px;
+    }
+
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <div class="header-bar">
+    <h1>Registo Apostas Martingale</h1>
+    <button id="themeBtn" class="small">🌙 Escuro</button>
+  </div>
+
+  <!-- CONFIGURAÇÃO -->
+  <div class="card">
+    <h2>Configuração</h2>
+    <div class="flex-row">
+      <div class="flex-item">
+        <label>Banca (€)</label>
+        <input id="bankroll" type="number" step="0.01">
+      </div>
+      <div class="flex-item">
+        <label>Lucro Base (€)</label>
+        <input id="baseProfit" type="number" step="0.01">
+      </div>
+      <div class="flex-item">
+        <label>Perdas acumuladas</label>
+        <input id="currentLoss" disabled>
+      </div>
+      <div class="flex-item">
+        <label>Passo Martingale</label>
+        <input id="martingaleStep" disabled>
+      </div>
+      <div class="flex-item">
+        <label>Banca inicial (€)</label>
+        <input id="initialBankroll" disabled>
+      </div>
+    </div>
+
+    <button class="primary" onclick="saveSettings()">Guardar</button>
+    <button class="small" onclick="resetSeries()">Reiniciar série</button>
+  </div>
+
+  <!-- NOVA APOSTA -->
+  <div class="card">
+    <h2>Nova Aposta</h2>
+
+    <label>Jogos de hoje</label>
+    <select id="todayMatchSelect">
+      <option>A carregar...</option>
+    </select>
+
+    <label>Jogo / Descrição</label>
+    <input id="match" placeholder="Equipa A vs Equipa B">
+
+    <div class="flex-row">
+      <div class="flex-item">
+        <label>Mercado</label>
+        <input id="market" value="BTTS">
+      </div>
+      <div class="flex-item">
+        <label>Seleção</label>
+        <select id="selection">
+          <option value="BTTS-SIM">BTTS – SIM</option>
+          <option value="BTTS-NAO">BTTS – NÃO</option>
+        </select>
+      </div>
+      <div class="flex-item">
+        <label>Odd</label>
+        <input id="odd" type="number" step="0.001">
+      </div>
+    </div>
+
+    <button class="primary" onclick="calculateStake()">Calcular stake</button>
+    <p id="calcResult"></p>
+    <button class="primary" onclick="addBet()">Registar aposta</button>
+  </div>
+
+  <!-- ESTATÍSTICAS -->
+  <div class="card">
+    <h2>Estatísticas</h2>
+    <div class="flex-row">
+      <div class="stat-box"><div>Banca:</div><b id="statBankroll">0.00 €</b></div>
+      <div class="stat-box"><div>Lucro total:</div><b id="statProfit">0.00 €</b></div>
+      <div class="stat-box"><div>Total apostado:</div><b id="statStaked">0.00 €</b></div>
+      <div class="stat-box"><div>ROI:</div><b id="statROI">0.00 %</b></div>
+      <div class="stat-box"><div>G/P/Pend:</div><b id="statCounts">0/0/0</b></div>
+      <div class="stat-box"><div>Winrate:</div><b id="statWinrate">0.00 %</b></div>
+      <div class="stat-box"><div>Max Loss Streak:</div><b id="statMaxLoses">0</b></div>
+      <div class="stat-box"><div>Max Stake:</div><b id="statMaxStake">0.00 €</b></div>
+    </div>
+  </div>
+
+  <!-- GRÁFICOS -->
+  <div class="card">
+    <h2>Gráficos</h2>
+
+    <div class="chart-container">
+      <canvas id="equityChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="resultPieChart"></canvas>
+    </div>
+
+  </div>
+
+  <!-- HISTÓRICO -->
+  <div class="card">
+    <h2>Histórico</h2>
+    <button class="small" onclick="exportCSV()">Exportar CSV</button>
+    <button class="small" onclick="clearAllBets()">Limpar tudo</button>
+
+    <div class="table-wrapper">
+      <table id="betsTable">
+        <thead>
+          <tr>
+            <th>#</th><th>Data</th><th>Jogo</th><th>Mercado</th><th>Seleção</th>
+            <th>Odd</th><th>Stake</th><th>Antes</th><th>Depois</th>
+            <th>Resultado</th><th>Lucro</th><th>Passo</th><th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+/* ================================
+   ENDPOINTS
+================================ */
+const API_FOOTBALL_BASE_URL = "https://martingale-api.pflm-bet.workers.dev";
+const API_DB_BASE_URL       = "https://martingale-db.pflm-bet.workers.dev";
+
+/* ================================
+   ESTADO GLOBAL
+================================ */
+let settings = {
+  bankroll: 0,
+  baseProfit: 0.2,
+  currentLoss: 0,
+  martingaleStep: 1,
+  initialBankroll: null
+};
+
+let bets = [];
+let equityChart, resultPieChart;
+let isLoading = false;
+
+function toNumber(v, def=0){ const n=Number(v); return isNaN(n)?def:n; }
+
+/* ===== FIM DA PARTE 1 ===== */
+/* ================================
+   SETTINGS — BD D1
+================================ */
+async function loadSettingsFromDB() {
+  try {
+    const res = await fetch(`${API_DB_BASE_URL}/settings`);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+
+    const data = await res.json();
+    if (!data || Object.keys(data).length === 0) return;
+
+    settings.bankroll        = toNumber(data.bankroll, settings.bankroll);
+    settings.baseProfit      = toNumber(data.baseProfit, settings.baseProfit);
+    settings.currentLoss     = toNumber(data.currentLoss, settings.currentLoss);
+    settings.martingaleStep  = toNumber(data.martingaleStep, settings.martingaleStep);
+    settings.initialBankroll = data.initialBankroll
+        ? toNumber(data.initialBankroll)
+        : settings.initialBankroll;
+
+  } catch (e) {
+    console.error("Erro a carregar settings:", e);
+  }
+}
+
+async function saveSettingsToDB() {
+  try {
+    await fetch(`${API_DB_BASE_URL}/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings)
+    });
+  } catch (e) {
+    console.error("Erro ao gravar settings:", e);
+  }
+}
+
+function updateConfigUI() {
+  bankroll.value        = settings.bankroll.toFixed(2);
+  baseProfit.value      = settings.baseProfit.toFixed(2);
+  currentLoss.value     = settings.currentLoss.toFixed(2);
+  martingaleStep.value  = settings.martingaleStep;
+  initialBankroll.value = settings.initialBankroll != null
+    ? settings.initialBankroll.toFixed(2)
+    : "";
+}
+
+async function saveSettings() {
+  settings.bankroll   = toNumber(bankroll.value);
+  settings.baseProfit = toNumber(baseProfit.value);
+
+  if (!settings.initialBankroll)
+    settings.initialBankroll = settings.bankroll;
+
+  await saveSettingsToDB();
+  updateConfigUI();
+  computeAndUpdateStats();
+}
+
+async function resetSeries() {
+  settings.currentLoss = 0;
+  settings.martingaleStep = 1;
+  await saveSettingsToDB();
+  updateConfigUI();
+  computeAndUpdateStats();
+}
+
+/* ================================
+   APOSTAS — BD D1
+================================ */
+async function loadBetsFromDB() {
+  try {
+    const res = await fetch(`${API_DB_BASE_URL}/bets`);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+
+    const data = await res.json();
+    bets = data.map(b => ({
+      id: b.id,
+      datetime: b.datetime,
+      displayDatetime: b.displayDatetime,
+      match: b.match,
+      market: b.market,
+      selection: b.selection,
+      odd: toNumber(b.odd),
+      stake: toNumber(b.stake),
+      bankrollBefore: toNumber(b.bankrollBefore),
+      bankrollAfter: toNumber(b.bankrollAfter),
+      result: b.result,
+      profit: toNumber(b.profit),
+      martingaleStep: b.martingaleStep
+    }));
+
+  } catch (e) {
+    console.error("Erro a carregar apostas:", e);
+    bets = [];
+  }
+}
+
+async function addBetToDB(bet) {
+  await fetch(`${API_DB_BASE_URL}/bets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bet)
+  });
+  await loadBetsFromDB();
+}
+
+async function updateBetInDB(bet) {
+  await fetch(`${API_DB_BASE_URL}/bets/${bet.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      bankrollAfter: bet.bankrollAfter,
+      result: bet.result,
+      profit: bet.profit,
+      martingaleStep: bet.martingaleStep
+    })
+  });
+}
+
+async function deleteBetFromDB(id) {
+  await fetch(`${API_DB_BASE_URL}/bets/${id}`, {
+    method: "DELETE"
+  });
+  await loadBetsFromDB();
+}
+
+/* ================================
+   CALCULAR STAKE
+================================ */
+function calculateStake() {
+  const oddVal = toNumber(odd.value);
+
+  if (!oddVal || oddVal <= 1) {
+    calcResult.innerHTML =
+      "<span style='color:var(--danger)'>Odd inválida.</span>";
+    return;
+  }
+
+  const stake = (settings.currentLoss + settings.baseProfit) / (oddVal - 1);
+
+  window.lastCalculatedStake = stake;
+
+  calcResult.innerHTML = `Stake recomendada: <b>${stake.toFixed(2)} €</b>`;
+}
+
+/* ================================
+   REGISTAR APOSTA
+================================ */
+async function addBet() {
+  if (isLoading) return;
+
+  const oddVal = toNumber(odd.value);
+  const stake  = window.lastCalculatedStake;
+  const matchValue = match.value.trim();
+
+  if (!matchValue || !oddVal || !stake) {
+    alert("Preencha jogo, odd e calcule a stake.");
+    return;
+  }
+
+  const bet = {
+    datetime: new Date().toISOString(),
+    displayDatetime: new Date().toLocaleString("pt-PT"),
+    match: matchValue,
+    market: market.value,
+    selection: selection.value,
+    odd: oddVal,
+    stake: stake,
+    bankrollBefore: settings.bankroll,
+    bankrollAfter: settings.bankroll,
+    result: "Pendente",
+    profit: 0,
+    martingaleStep: settings.martingaleStep
+  };
+
+  isLoading = true;
+  await addBetToDB(bet);
+  isLoading = false;
+
+  renderBetsTable();
+  computeAndUpdateStats();
+
+  todayMatchSelect.value = "";
+  match.value = "";
+  odd.value = "";
+  calcResult.innerHTML = "";
+  window.lastCalculatedStake = null;
+}
+
+/* ================================
+   ATUALIZAR RESULTADO
+================================ */
+async function setBetResult(index, outcome) {
+  const bet = bets[index];
+  if (!bet) return;
+
+  const oddVal = bet.odd;
+  const stake  = bet.stake;
+
+  if (bet.result !== "Pendente") {
+    if (!confirm("Alterar resultado da aposta?")) return;
+  }
+
+  if (outcome === "Ganha") {
+
+    const lucro = stake * (oddVal - 1) - settings.currentLoss;
+
+    settings.bankroll += lucro;
+    settings.currentLoss = 0;
+    settings.martingaleStep = 1;
+
+    bet.result = "Ganha";
+    bet.profit = lucro;
+    bet.bankrollAfter = settings.bankroll;
+
+  } else {
+
+    settings.bankroll -= stake;
+    settings.currentLoss += stake;
+    settings.martingaleStep++;
+
+    bet.result = "Perdida";
+    bet.profit = -stake;
+    bet.bankrollAfter = settings.bankroll;
+  }
+
+  bet.martingaleStep = settings.martingaleStep;
+
+  await saveSettingsToDB();
+  await updateBetInDB(bet);
+
+  updateConfigUI();
+  renderBetsTable();
+  computeAndUpdateStats();
+}
+
+/* ================================
+   APAGAR APOSTA
+================================ */
+async function deleteBet(index) {
+  if (!confirm("Apagar esta aposta?")) return;
+
+  const bet = bets[index];
+  await deleteBetFromDB(bet.id);
+
+  renderBetsTable();
+  computeAndUpdateStats();
+}
+
+/* ================================
+   RENDER TABELA
+================================ */
+function renderBetsTable() {
+  const tbody = document.querySelector("#betsTable tbody");
+  tbody.innerHTML = "";
+
+  bets.forEach((b, i) => {
+    const cls =
+      b.result === "Ganha"   ? "status-ganha" :
+      b.result === "Perdida" ? "status-perdida" :
+                               "status-pendente";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${b.id}</td>
+      <td>${b.displayDatetime}</td>
+      <td>${b.match}</td>
+      <td>${b.market}</td>
+      <td>${b.selection}</td>
+      <td>${b.odd.toFixed(3)}</td>
+      <td>${b.stake.toFixed(2)}</td>
+      <td>${b.bankrollBefore.toFixed(2)}</td>
+      <td>${b.bankrollAfter.toFixed(2)}</td>
+      <td class="${cls}">${b.result}</td>
+      <td>${b.profit.toFixed(2)}</td>
+      <td>${b.martingaleStep}</td>
+      <td>
+        <button class="small" onclick="setBetResult(${i}, 'Ganha')">Ganha</button>
+        <button class="small" onclick="setBetResult(${i}, 'Perdida')">Perdida</button>
+        <button class="small" style="background:var(--danger)"
+                onclick="deleteBet(${i})">🗑</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ===== FIM DA PARTE 2 ===== */
+/* ================================
+   ESTATÍSTICAS + GRÁFICOS
+================================ */
+function computeAndUpdateStats() {
+  const settled = bets.filter(b => b.result !== "Pendente");
+  const totalStaked = settled.reduce((a,b)=>a + b.stake, 0);
+  const totalProfit = settled.reduce((a,b)=>a + b.profit, 0);
+  const wins   = settled.filter(b => b.result === "Ganha").length;
+  const losses = settled.filter(b => b.result === "Perdida").length;
+  const pending = bets.length - settled.length;
+
+  statProfit.textContent   = totalProfit.toFixed(2) + " €";
+  statStaked.textContent   = totalStaked.toFixed(2) + " €";
+  statCounts.textContent   = `${wins}/${losses}/${pending}`;
+  statROI.textContent      = ((totalProfit / (totalStaked || 1)) * 100).toFixed(2) + " %";
+  statWinrate.textContent  = ((wins / (settled.length || 1)) * 100).toFixed(2) + " %";
+  statBankroll.textContent = settings.bankroll.toFixed(2) + " €";
+
+  updateCharts(settled);
+}
+
+/* ================================
+   GRÁFICOS CORRIGIDOS
+================================ */
+function updateCharts(settled) {
+
+  /* ---------- EQUITY ---------- */
+  const sorted = settled.slice().sort(
+    (a,b) => new Date(a.datetime) - new Date(b.datetime)
+  );
+
+  const eqLabels = [];
+  const eqData   = [];
+
+  let current = settings.initialBankroll || settings.bankroll;
+
+  eqLabels.push("Start");
+  eqData.push(current);
+
+  sorted.forEach(b => {
+    eqLabels.push(new Date(b.datetime).toLocaleString("pt-PT"));
+    eqData.push(b.bankrollAfter);
+  });
+
+  if (equityChart) equityChart.destroy();
+
+  const ctxEq = document.getElementById("equityChart").getContext("2d");
+  equityChart = new Chart(ctxEq, {
+    type: "line",
+    data: {
+      labels: eqLabels,
+      datasets: [{
+        label: "Banca (€)",
+        data: eqData,
+        borderColor: "#2d7ef7",
+        backgroundColor: "rgba(45,126,247,0.15)",
+        fill: true,
+        tension: 0.25,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false
+    }
+  });
+
+  /* ---------- PIE RESULTADOS ---------- */
+  const wins   = settled.filter(b => b.result==="Ganha").length;
+  const losses = settled.filter(b => b.result==="Perdida").length;
+  const pending = bets.filter(b => b.result==="Pendente").length;
+
+  if (resultPieChart) resultPieChart.destroy();
+
+  const ctxPie = document.getElementById("resultPieChart").getContext("2d");
+  resultPieChart = new Chart(ctxPie, {
+    type: "pie",
+    data: {
+      labels: ["Ganha", "Perdida", "Pendente"],
+      datasets: [{
+        data: [wins, losses, pending],
+        backgroundColor: ["#2ecc71", "#e74c3c", "#f1c40f"]
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false
+    }
+  });
+}
+
+/* ================================
+   EXPORTAÇÃO CSV
+================================ */
+function exportCSV() {
+  let csv = "ID;Data;Jogo;Mercado;Seleção;Odd;Stake;Antes;Depois;Resultado;Lucro;Passo\n";
+
+  bets.forEach(b => {
+    csv += `${b.id};${b.displayDatetime};${b.match};${b.market};${b.selection};${b.odd};${b.stake};${b.bankrollBefore};${b.bankrollAfter};${b.result};${b.profit};${b.martingaleStep}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "apostas_martingale.csv";
+  a.click();
+}
+
+/* ================================
+   LIMPAR HISTÓRICO (BD D1)
+================================ */
+async function clearAllBets() {
+  if (!confirm("Tem a certeza que deseja APAGAR todo o histórico?")) return;
+
+  for (const b of bets) {
+    await deleteBetFromDB(b.id);
+  }
+
+  bets = [];
+  renderBetsTable();
+  computeAndUpdateStats();
+}
+
+/* ================================
+   JOGOS DO DIA (API WORKER)
+================================ */
+async function loadTodayMatches() {
+  const sel = document.getElementById("todayMatchSelect");
+  sel.innerHTML = "<option>A carregar...</option>";
+
+  const date = new Date().toISOString().slice(0, 10);
+
+  try {
+    const res = await fetch(`${API_FOOTBALL_BASE_URL}/?date=${date}`);
+    const data = await res.json();
+
+    const fixtures = data.response || [];
+    if (!fixtures.length) {
+      sel.innerHTML = "<option>Sem jogos hoje</option>";
+      return;
+    }
+
+    sel.innerHTML = "<option value=''>-- Selecionar --</option>";
+
+    fixtures.forEach(f => {
+      const time = new Date(f.fixture.date)
+        .toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+
+      const txt = `${f.teams.home.name} vs ${f.teams.away.name}`;
+
+      const opt = document.createElement("option");
+      opt.value = txt;
+      opt.textContent = `${time} — ${txt} (${f.league.name})`;
+      sel.appendChild(opt);
+    });
+
+  } catch (e) {
+    console.error("Erro jogos:", e);
+    sel.innerHTML = "<option>Erro ao carregar jogos</option>";
+  }
+}
+
+/* ================================
+   TEMA CLARO / ESCURO
+================================ */
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem("martingale_theme", theme);
+  themeBtn.textContent = theme === "light" ? "🌞 Claro" : "🌙 Escuro";
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme") || "dark";
+  applyTheme(current === "dark" ? "light" : "dark");
+}
+
+/* ================================
+   INICIALIZAÇÃO GERAL
+================================ */
+window.onload = async () => {
+
+  // Tema
+  applyTheme(localStorage.getItem("martingale_theme") || "dark");
+  themeBtn.onclick = toggleTheme;
+
+  // Carregar BD
+  await loadSettingsFromDB();
+  await loadBetsFromDB();
+
+  updateConfigUI();
+  renderBetsTable();
+  computeAndUpdateStats();
+
+  // Jogos
+  loadTodayMatches();
+
+  todayMatchSelect.onchange = () => {
+    if (todayMatchSelect.value)
+      match.value = todayMatchSelect.value;
+  };
+};
+
+</script>
+
+</div>
+</body>
+</html>
