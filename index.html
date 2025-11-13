@@ -1,21 +1,37 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
-	<link rel="manifest" href="manifest.json" type="application/manifest+json">
-	<meta name="theme-color" content="#2d7ef7">
-
-	<script>
-	  if ("serviceWorker" in navigator) {
-		navigator.serviceWorker.register("service-worker.js")
-		  .then(() => console.log("SW registered"))
-		  .catch(err => console.log("SW error:", err));
-	  }
-	</script>
   <meta charset="UTF-8" />
-  <title>Registo Apostas Martingale + ROI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>Registo Apostas Martingale + ROI</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json" type="application/manifest+json">
+
+  <!-- Theme color (Android status bar) -->
+  <meta name="theme-color" content="#2d7ef7" />
+
+  <!-- PWA Icons -->
+  <link rel="icon" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" sizes="512x512" href="icons/icon-512.png">
+
+  <!-- Service Worker -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("service-worker.js")
+          .then(() => console.log("Service Worker registado"))
+          .catch(err => console.error("Erro ao registar SW:", err));
+      });
+    }
+  </script>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
+  <!-- CSS DA TUA APP -->
   <style>
     :root {
       --bg: #111;
@@ -104,7 +120,6 @@
 
     .table-wrapper { width:100%; overflow-x:auto; }
 
-    /* 🌗 Tema */
     .header-bar {
       display: flex;
       justify-content: space-between;
@@ -118,9 +133,9 @@
       height: 260px;
       margin-bottom: 20px;
     }
-
   </style>
 </head>
+
 <body>
 <div class="page-wrapper">
 
