@@ -1,41 +1,66 @@
 const CACHE_NAME = "martingale-cache-v1";
+const OFFLINE_URL = "index.html";
 
 const FILES_TO_CACHE = [
   "/martingale-app/",
   "/martingale-app/index.html",
-  "/martingale-app/manifest.json"
+  "/martingale-app/manifest.json",
+  "/martingale-app/icons/icon-192.png",
+  "/martingale-app/icons/icon-512.png"
 ];
 
-// Instalação e cache inicial
-self.addEventListener("install", evt => {
-  evt.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
+// INSTALA
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(FILES_TO_CACHE);
     })
   );
+  self.skipWaiting();
 });
 
-// Estratégia: NETWORK FIRST para API, CACHE FIRST para HTML
-self.addEventListener("fetch", evt => {
-  const url = evt.request.url;
+// ATIVA
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) return caches.delete(key);
+        })
+      )
+    )
+  );
+  self.clients.claim();
+});
 
-  // Workers nunca em cache
+// FETCH — NETWORK FIRST (HTML) + CACHE FALLBACK
+self.addEventListener("fetch", (event) => {
+  const url = event.request.url;
+
+  // ⚠️ NÃO cachear chamadas à API do Worker/D1
   if (url.includes("martingale-db") || url.includes("martingale-api")) {
-    return; 
+    return;
   }
 
-  // HTML em cache primeiro
-  if (evt.request.destination === "document") {
-    evt.respondWith(
-      caches.match(evt.request).then(response => {
-        return response || fetch(evt.request);
+  // HTML → Network first
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match(OFFLINE_URL);
       })
     );
     return;
   }
 
-  // Restante conteúdo: network first
-  evt.respondWith(
-    fetch(evt.request).catch(() => caches.match(evt.request))
+  // Outros → Cache first
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return (
+        response ||
+        fetch(event.request).then((resp) => {
+          return resp;
+        })
+      );
+    })
   );
 });
