@@ -488,18 +488,24 @@ async function setBetResult(index, outcome) {
 
   if (outcome === "Ganha") {
 
-    const lucro = stake * (oddVal - 1) - settings.currentLoss;
+    // 🔥 LUCRO REAL
+    const lucro = (stake * oddVal) - stake;
 
+    // Atualizar banca
     settings.bankroll += lucro;
+
+    // Reset martingale
     settings.currentLoss = 0;
     settings.martingaleStep = 1;
 
+    // Atualizar aposta
     bet.result = "Ganha";
     bet.profit = lucro;
     bet.bankrollAfter = settings.bankroll;
 
   } else {
 
+    // Derrota normal
     settings.bankroll -= stake;
     settings.currentLoss += stake;
     settings.martingaleStep++;
@@ -509,8 +515,10 @@ async function setBetResult(index, outcome) {
     bet.bankrollAfter = settings.bankroll;
   }
 
+  // Sincronizar passo
   bet.martingaleStep = settings.martingaleStep;
 
+  // Gravar em BD
   await saveSettingsToDB();
   await updateBetInDB(bet);
 
